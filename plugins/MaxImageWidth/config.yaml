@@ -13,5 +13,5 @@ options:
         scope: blog
 
 callbacks:
-    MT::App::CMS::template_source.asset_options: $MaxImageWidth::MaxImageWidth::Plugin::xfrm_asset_options
-    MT::App::CMS::template_param.asset_options_image: $MaxImageWidth::MaxImageWidth::Plugin::asset_options_param
+    template_source.multi_asset_options: $MaxImageWidth::MaxImageWidth::Plugin::xfrm_asset_options
+    template_param.insert_options_image: $MaxImageWidth::MaxImageWidth::Plugin::asset_options_param

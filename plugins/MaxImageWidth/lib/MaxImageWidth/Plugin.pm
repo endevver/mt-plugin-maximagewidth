@@ -1,135 +1,116 @@
 package MaxImageWidth::Plugin;
 
 use strict;
+use warnings;
 
 sub xfrm_asset_options {
     my ( $cb, $app, $tmpl ) = @_;
-    my $slug;
-    $slug = <<END_TMPL;
-<link type="text/css" href="<mt:StaticWebPath>jquery/themes/flora/flora.all.css" rel="stylesheet" />
+    my $slug = <<END_TMPL;
 <style type="text/css">
-  #create_thumbnail-field {
-    display: none;
-  }
-
-  #create_thumbnail_cb {
-    float: left;
-    padding-right: 10px;
-    margin-top: 10px;
-  }
-
-  #width-slider {
-    float: left;
+  .width-slider {
     width: 200px;
     margin-top: 10px;
   }
 
-  #w-h {
+  .w-h {
+      text-align: left;
     width: 120px;
-    float: left;
+    display: inline;
     margin-top: 10px;
   }
 
-  #w-h input {
+  .w-h input {
       width: 3.5em;
       text-align: center;
   }
-
-  .dialog #image_alignment-field {
-      top: 0;
-  }
 </style>
 END_TMPL
-    $$tmpl =~ s{(<mt:setvarblock name="html_head" append="1">)}{$1 $slug}msi;
+    $$tmpl =~ s{(<style>)}{$slug $1}msi;
 
 }
 
 sub asset_options_param {
     my ( $cb, $app, $param, $tmpl ) = @_;
+    my $blog   = $app->blog;
+    my $q      = $app->param;
+    my $author = $app->user;
+    my $plugin = $app->component('MaxImageWidth');
+    my $config = $plugin->get_config_hash( 'blog:' . $blog->id );
 
-    my $blog          = $app->blog;
-    my $q             = $app->param;
-    my $author        = $app->user;
-    my $plugin        = MT->component('MaxImageWidth');
-    my $config        = $plugin->get_config_hash( 'blog:' . $blog->id );
+    my $max_width = $config->{max_image_width};
+    my $asset = $app->model('asset')->load({ id => $param->{id} })
+        or die $app->error('No asset specified!?');
+    $max_width ||= $param->{width} || $asset->image_width;
+    my $asset_height = $asset->image_height || 0;
 
-    my $max_width     = $config->{max_image_width};
-    $max_width ||= $param->{width};
-
-    my $ct_field = $tmpl->getElementById('create_thumbnail')
-      or return $app->error('cannot get the create thumbnail block');
-    my $new_field = $tmpl->createElement(
-        'app:setting',
-        {
-            id    => 'create_thumbnail2',
-            class => '',
-            label => $app->translate("Use thumbnail"),
-            label_class => "no-header",
-            hint => "",
-            show_hint => "0",
-            help_page => "file_upload",
-            help_section => "creating_thumbnails"
-        }
-    ) or return $app->error('cannot create the su_twitter element');
-    my $mt = ($param->{make_thumb} ? 'checked="checked"' : '');
-    my $html = <<HTML;
+    my $old_html = q{\(<label for="thumb_width"><__trans phrase="width:"></label> <input type="text" name="thumb_width" id="thumb_width-<mt:var name="id">" class="text num" value="<mt:var name="thumb_width" escape="html">"/> <__trans phrase="pixels">\)\s+<input type="hidden" name="thumb_height" value="<mt:var name="thumb_height" escape="html">" />};
+    use Data::Dumper;
+    # MT->log("Image size: $param->{width}, ".Dumper($param));
+    my $new_html = <<NEW_HTML;
 <script type="text/javascript">
-    var full_width = $param->{width};
-    var full_height = $param->{height};
+    var full_width = <mt:Var name="thumb_width" escape="html">;
+    var full_height = $asset_height;
     var max_width = $max_width;
     jQuery(document).ready( function() {
-        jQuery('#thumb_width').change( function() {
+        jQuery('#thumb_width-<mt:Var name="id">').change( function() {
             var new_w = jQuery(this).val();
             if (new_w > max_width) {
                 jQuery(this).val( max_width );
             }
-            jQuery('#thumb_height').val( Math.floor( (full_height * jQuery(this).val() ) / full_width) );
-            jQuery('#width-slider').slider('option', 'value', jQuery(this).val());
+            jQuery('#thumb_height-<mt:Var name="id">')
+                .val( Math.floor( (full_height * jQuery(this).val() ) / full_width) );
+            jQuery('#width-slider-<mt:Var name="id">')
+                .slider('option', 'value', jQuery(this).val());
         });
 
-        jQuery('#thumb_height').change( function() {
+        jQuery('#thumb_height-<mt:Var name="id">').change( function() {
             var new_h = jQuery(this).val();
             var new_w = Math.floor( (full_width * new_h ) / full_height );
             if (new_w > max_width) {
-                jQuery('#thumb_width').val( max_width ).trigger('change');
+                jQuery('#thumb_width-<mt:Var name="id">').val( max_width ).trigger('change');
                 return;
             }
-            jQuery('#thumb_width').val( new_w );
-            jQuery('#width-slider').slider('option', 'value', new_w);
+            jQuery('#thumb_width-<mt:Var name="id">').val( new_w );
+            jQuery('#width-slider-<mt:Var name="id">').slider('option', 'value', new_w);
         });
 
-        jQuery('#width-slider').slider({
+        jQuery('#width-slider-<mt:Var name="id">').slider({
             slide: function(event, ui) {
-                jQuery('#thumb_width').val( ui.value );
-                jQuery('#thumb_height').val( Math.floor( (full_height * ui.value ) / full_width) );
+                jQuery('#thumb_width-<mt:Var name="id">').val( ui.value );
+                jQuery('#thumb_height-<mt:Var name="id">')
+                    .val( Math.floor( (full_height * ui.value ) / full_width) );
             },
             max: max_width
         });
 
-        jQuery('#width-slider').slider('value', max_width);
+        jQuery('#width-slider-<mt:Var name="id">').slider('value', max_width);
 
         if (full_width > max_width) {
-            jQuery('#thumb_width').trigger('change');
+            jQuery('#thumb_width-<mt:Var name="id">').trigger('change');
         }
     });
 </script>
-        <div id="create_thumbnail_cb">
-            <input type="checkbox" name="thumb" id="create_thumbnail" value="1" $mt />
-            <label for="create_thumbnail">Use thumbnail?</label>
-        </div>
-        <div id="w-h">
-            <input type="text" id="thumb_width" size="3" name="thumb_width" value="$param->{width}" />
+        <div id="w-h-<mt:Var name="id">" class="w-h">
+            <span>(width &times; height)</span>
+            <input type="text" size="3"
+                name="thumb_width"
+                id="thumb_width-<mt:var name="id">"
+                class="text num"
+                value="<mt:Var name="thumb_width" escape="html">" />
             &times;
-            <input type="text" id="thumb_height" size="3" name="thumb_height" value="$param->{height}" />
+            <input type="text" size="3"
+                name="thumb_height"
+                id="thumb_height-<mt:Var name="id">"
+                class="text num"
+                value="$asset_height" />
         </div>
-        <div id="width-slider"></div>
-HTML
-    $new_field->innerHTML($html);
-    $tmpl->insertAfter( $new_field, $ct_field )
-      or return $app->error('failed to insertAfter.');
-    $ct_field->innerHTML('');
+        <div id="width-slider-<mt:Var name="id">" class="width-slider"></div>
+NEW_HTML
 
-    $param;
+    my $text = $tmpl->text;
+    $text =~ s/$old_html/$new_html/msi;
+    $tmpl->text($text);
+
 }
 
 1;
